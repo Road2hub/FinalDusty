@@ -165,11 +165,78 @@ let scores={dustkid:0,dustdad:0,dustmom:0,dustgirl:0,dustdog:0};
 
 // Google Sheets
 const GOOGLE_SCRIPT_URL='https://script.google.com/macros/s/AKfycbzutQSY--COv5BSBu7nBqTT06jMkxReAMUsXwD3UwGCtW6OwxfMSu8XBnxY4EruMkNA/exec';
+// Label map: raw value → Google Form display format
+const labelMap={
+  // Grade
+  f4:"F.4",f5:"F.5",f6:"F.6",neither:"以上皆非 / Neither above",
+  // Gender
+  male:"男 / Male",female:"女 / Female",nb:"非二元/其他 / Non-binary/Other",pns:"不願透露 / Prefer not to say",
+  // School
+  gov:"官立 / Government",aided:"資助 / Aided",dss:"直接資助計劃 (DSS) / Direct Subsidy Scheme (DSS)",intl:"國際/私立 / International/Private",
+  // Talk to
+  friends:"朋友/ Friends",family:"家人/父母 / Family/Parents",apps:"線上應用程式或聊天機器人 / Online apps or chatbots",sw:"社工 / Social Workers",teachers:"老師/學校輔導員 / Teachers/School counselors",none:"沒有人/我自己保留 / No one/ I keep it to myself",
+  // Heard
+  yes:"是 / Yes",no:"否 / No",unsure:"不確定 / Not sure",
+  // Branch A freq
+  daily:"每日 / Daily",weekly_few:"每週幾次 / A few times a week",weekly:"每週一次 / Once a week",less:"少於每週一次 / Less than once a week",stopped:"完全沒有（已停止使用）/ Not at all (stopped using)",
+  // Branch A stop reasons
+  repetitive:"感覺重複或不夠有幫助 / It felt repetitive or not helpful enough",busy:"學校功課太忙 / Too busy with schoolwork",human:"更喜歡與真人交談 / Preferred talking to real people",privacy:"隱私擔憂 / Privacy concerns",ux:"應用程式難用或不吸引 / App was hard to use or not engaging",incentive:"沒有學校激勵（例如作業）/ No school incentives",
+  // Branch A missing
+  personal:"更多個人化回應 / More personalised responses",simple:"更簡化的回答 / More simplified response",games:"遊戲或使用獎勵 / Games or rewards for using it",school:"更好地與學校活動整合 / Better integration with school activities",group:"與朋友的群組聊天 / Group chats with friends",voice:"語音或影片選項 / Voice or video options",
+  // Branch A encourage
+  reward:"學校獎勵或作業 / School rewards or assignments",remind:"每日提醒或通知 / Daily reminders or notifications",empathy:"改善回應的同理心 / Improved empathy in responses",fun:"有趣更新如新插圖 / Fun updates like new illustrations",share:"如需與輔導員分享的選項 / Sharing options with counselors if needed",
+  // Branch B liked
+  cute:"可愛角色及視覺 / The cute character and visuals",anon:"匿名及隱私 / Anonymity and privacy",fast:"快速回應 / Quick responses",advice:"有幫助的建議或反思 / Helpful advice or reflections",mood:"情緒追蹤/日記功能 / Mood tracking/journal features",
+  // Branch B improve
+  emotion:"更好地理解我的情緒 / Better understanding of my emotions",faster:"更快載入或更簡單介面 / Faster loading or simpler interface",topics:"更多主題選項 / More options for topics",
+  // Shared "none"
+  // none is already mapped above to Talk To version, handle separately below
+};
+// Special "none" labels per question
+const noneLabels={qa4_missing:"無/現況已好 / None/It's fine as is",qa5_encourage:"無/我不會使用更多 / Nothing/I wouldn't use it more",qb3_liked:"沒有特別 / Nothing in particular",qb4_improve:"無/已經很好 / Nothing/It's good"};
+
+function mapVal(qid,v){
+  if(v==='none'&&noneLabels[qid])return noneLabels[qid];
+  return labelMap[v]||v;
+}
+function mapArr(qid,arr){
+  if(!Array.isArray(arr))return arr||"";
+  return arr.map(v=>mapVal(qid,v)).join(", ");
+}
+
 function submitToSheets(cr){
   if(!GOOGLE_SCRIPT_URL||GOOGLE_SCRIPT_URL==='YOUR_GOOGLE_SCRIPT_URL'){updateSS('offline');return;}
   const br=answers.q11_used==='yes'?'A':'B';
+  const payload={
+    q1_grade:mapVal('q1_grade',answers.q1_grade),
+    q2_gender:mapVal('q2_gender',answers.q2_gender),
+    q3_school:mapVal('q3_school',answers.q3_school),
+    q4_stress:answers.q4_stress||"",
+    q5_depression:answers.q5_depression||"",
+    q6_talkto:Array.isArray(answers.q6_talkto)?answers.q6_talkto.map(v=>mapVal('q6_talkto',v)):(answers.q6_talkto||""),
+    q7_human:answers.q7_human||"",
+    q8_ai:answers.q8_ai||"",
+    q9_heard:mapVal('q9_heard',answers.q9_heard),
+    q10_ip:answers.q10_ip||"",
+    q11_used:mapVal('q11_used',answers.q11_used),
+    qa1_freq:mapVal('qa1_freq',answers.qa1_freq),
+    qa2_stop:Array.isArray(answers.qa2_stop)?answers.qa2_stop.map(v=>mapVal('qa2_stop',v)):(answers.qa2_stop||""),
+    qa3_sat:answers.qa3_sat||"",
+    qa4_missing:Array.isArray(answers.qa4_missing)?answers.qa4_missing.map(v=>mapVal('qa4_missing',v)):(answers.qa4_missing||""),
+    qa5_encourage:Array.isArray(answers.qa5_encourage)?answers.qa5_encourage.map(v=>mapVal('qa5_encourage',v)):(answers.qa5_encourage||""),
+    qa6_rec:answers.qa6_rec||"",
+    qb1_ease:answers.qb1_ease||"",
+    qb2_engaging:answers.qb2_engaging||"",
+    qb3_liked:Array.isArray(answers.qb3_liked)?answers.qb3_liked.map(v=>mapVal('qb3_liked',v)):(answers.qb3_liked||""),
+    qb4_improve:Array.isArray(answers.qb4_improve)?answers.qb4_improve.map(v=>mapVal('qb4_improve',v)):(answers.qb4_improve||""),
+    qb5_interest:answers.qb5_interest||"",
+    qb6_rec:answers.qb6_rec||"",
+    branch:br,
+    character_result:cr,
+    scores:scores
+  };
   updateSS('sending');
-  fetch(GOOGLE_SCRIPT_URL,{method:'POST',mode:'no-cors',headers:{'Content-Type':'application/json'},body:JSON.stringify({...answers,branch:br,character_result:cr,scores})})
+  fetch(GOOGLE_SCRIPT_URL,{method:'POST',mode:'no-cors',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)})
   .then(()=>updateSS('success')).catch(()=>updateSS('error'));
 }
 function updateSS(s){const e=document.getElementById('submitStatus');if(!e)return;const m={sending:'⏳ 正在儲存… / Saving…',success:'✅ 已儲存！/ Saved!',error:'⚠️ 儲存失敗 / Save failed',offline:''};e.textContent=m[s]||'';e.style.color=s==='success'?'var(--accent)':s==='error'?'var(--coral)':'var(--text2)';}
